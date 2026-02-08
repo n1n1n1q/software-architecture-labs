@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  logging-service:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.logging
+    ports:
+      - "8000:8000"
+
+  counter-service:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.counter
+    ports:
+      - "8001:8001"
+
+  facade-service:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.facade
+    environment:
+      LOGGING_SERVICE_URL: http://logging-service:8000
+      COUNTER_SERVICE_URL: http://counter-service:8001
+    ports:
+      - "8002:8002"
+    depends_on:
+      - logging-service
+      - counter-service
