@@ -1,0 +1,37 @@
+POST http://localhost:8002/transaction
+Content-Type: application/json
+
+{
+	"user_id": "user-0",
+	"amount": 1.25
+}
+
+###
+POST http://localhost:8002/transaction
+Content-Type: application/json
+
+{
+	"user_id": "user-1",
+	"amount": 2.5
+}
+
+###
+POST http://localhost:8002/transaction
+Content-Type: application/json
+
+{
+	"user_id": "user-0",
+	"amount": 3.75
+}
+
+### Fetch a single user summary
+GET http://localhost:8002/user/user-0
+
+### Fetch all accounts
+GET http://localhost:8002/accounts
+
+### Fetch metrics
+GET http://localhost:8002/metrics
+
+### Reset metrics
+POST http://localhost:8002/metrics/reset
