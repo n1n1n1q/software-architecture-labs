@@ -82,7 +82,14 @@ async def get_user_balance(user_id: str):
     counter_data = counter_response.json()
 
     user_transactions = [
-        tx for tx in log_data.get("transactions", {}).values() if tx["user_id"] == user_id
+        {
+            "transaction_id": tx_id,
+            "user_id": tx_data["user_id"],
+            "amount": tx_data["amount"],
+            "timestamp": tx_data["timestamp"],
+        }
+        for tx_id, tx_data in log_data.get("transactions", {}).items()
+        if tx_data["user_id"] == user_id
     ]
 
     return {

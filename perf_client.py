@@ -12,7 +12,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Facade performance client")
     parser.add_argument("--base-url", default="http://localhost:8002", help="Facade base URL")
     parser.add_argument("--clients", type=int, default=10, help="Number of concurrent clients")
-    parser.add_argument("--requests-per-client", type=int, default=1000, help="Requests per client")
+    parser.add_argument("--requests-per-client", type=int, default=10000, help="Requests per client")
     parser.add_argument("--amount", type=float, default=1.0, help="Amount per transaction")
     parser.add_argument("--same-user", action="store_true", help="Use same user for all clients")
     parser.add_argument("--verify", action="store_true", help="Verify balances after run")

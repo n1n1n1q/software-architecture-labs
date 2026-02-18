@@ -4,21 +4,21 @@ services:
   logging-service:
     build:
       context: ./app
-      dockerfile: Dockerfile.logging
+      dockerfile: logging.Dockerfile
     ports:
       - "8000:8000"
 
   counter-service:
     build:
       context: ./app
-      dockerfile: Dockerfile.counter
+      dockerfile: counter.Dockerfile
     ports:
       - "8001:8001"
 
   facade-service:
     build:
       context: ./app
-      dockerfile: Dockerfile.facade
+      dockerfile: facade.Dockerfile
     environment:
       LOGGING_SERVICE_URL: http://logging-service:8000
       COUNTER_SERVICE_URL: http://counter-service:8001
