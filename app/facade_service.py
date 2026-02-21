@@ -34,29 +34,30 @@ async def process_transaction(request: TransactionRequest):
     }
 
     async with httpx.AsyncClient() as client:
-        # Log transaction
         start_logging = time.perf_counter()
-        log_response = await client.post(
+        start_counter = time.perf_counter()
+        
+        log_task = client.post(
             f"{logging_service_base_url}/log",
             json=payload,
             timeout=10.0,
         )
-        log_response.raise_for_status()
-        logging_elapsed = time.perf_counter() - start_logging
-
-        # Update balance
-        start_counter = time.perf_counter()
-        counter_response = await client.post(
+        counter_task = client.post(
             f"{counter_service_base_url}/update_balance",
             json=payload,
             timeout=10.0,
         )
+        
+        log_response, counter_response = await asyncio.gather(log_task, counter_task)
+        
+        log_response.raise_for_status()
         counter_response.raise_for_status()
+        
+        logging_elapsed = time.perf_counter() - start_logging
         counter_elapsed = time.perf_counter() - start_counter
 
         counter_data = counter_response.json()
 
-    # Update metrics safely
     global logging_time_total
     global counter_time_total
     async with metrics_lock:
@@ -71,7 +72,6 @@ async def process_transaction(request: TransactionRequest):
 @app.get("/user/{user_id}")
 async def get_user_balance(user_id: str):
     async with httpx.AsyncClient() as client:
-        # Get logs and balance concurrently
         log_task = client.get(
             f"{logging_service_base_url}/logs",
             timeout=10.0,
@@ -94,7 +94,6 @@ async def get_user_balance(user_id: str):
         log_data = log_response.json()
         counter_data = counter_response.json()
 
-    # Update metrics safely
     global logging_time_total
     global counter_time_total
     async with metrics_lock:
@@ -130,7 +129,6 @@ async def get_all_accounts():
         counter_elapsed = time.perf_counter() - start_counter
         counter_data = counter_response.json()
 
-    # Update metrics safely
     global counter_time_total
     async with metrics_lock:
         counter_time_total += counter_elapsed
