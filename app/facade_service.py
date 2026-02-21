@@ -3,11 +3,10 @@ import datetime
 import os
 import time
 import uuid
+from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI
 from pydantic import BaseModel
-
-app = FastAPI()
 
 logging_service_base_url = os.getenv("LOGGING_SERVICE_URL", "http://logging-service:8000")
 counter_service_base_url = os.getenv("COUNTER_SERVICE_URL", "http://counter-service:8001")
@@ -15,12 +14,35 @@ counter_service_base_url = os.getenv("COUNTER_SERVICE_URL", "http://counter-serv
 logging_time_total = 0.0
 counter_time_total = 0.0
 metrics_lock = asyncio.Lock()
+http_client = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global http_client
+    http_client = httpx.AsyncClient(timeout=10.0)
+    yield
+    if http_client:
+        await http_client.aclose()
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 class TransactionRequest(BaseModel):
     user_id: str
     amount: float
 
+
+async def timed_post(client, url, json):
+    response = await client.post(url, json=json)
+    elapsed = response.elapsed.total_seconds()
+    return response, elapsed
+
+async def timed_get(client, url):
+    response = await client.get(url)
+    elapsed = response.elapsed.total_seconds()
+    return response, elapsed
 
 @app.post("/transaction")
 async def process_transaction(request: TransactionRequest):
@@ -33,30 +55,25 @@ async def process_transaction(request: TransactionRequest):
         "timestamp": timestamp.isoformat()
     }
 
-    async with httpx.AsyncClient() as client:
-        start_logging = time.perf_counter()
-        start_counter = time.perf_counter()
-        
-        log_task = client.post(
-            f"{logging_service_base_url}/log",
-            json=payload,
-            timeout=10.0,
-        )
-        counter_task = client.post(
-            f"{counter_service_base_url}/update_balance",
-            json=payload,
-            timeout=10.0,
-        )
-        
-        log_response, counter_response = await asyncio.gather(log_task, counter_task)
-        
-        log_response.raise_for_status()
-        counter_response.raise_for_status()
-        
-        logging_elapsed = time.perf_counter() - start_logging
-        counter_elapsed = time.perf_counter() - start_counter
+    log_task = timed_post(
+        http_client,
+        f"{logging_service_base_url}/log",
+        payload
+    )
+    counter_task = timed_post(
+        http_client,
+        f"{counter_service_base_url}/update_balance",
+        payload
+    )
+    
+    (log_response, logging_elapsed), (counter_response, counter_elapsed) = await asyncio.gather(
+        log_task, counter_task, return_exceptions=True
+    )
+    
+    log_response.raise_for_status()
+    counter_response.raise_for_status()
 
-        counter_data = counter_response.json()
+    counter_data = counter_response.json()
 
     global logging_time_total
     global counter_time_total
@@ -71,28 +88,24 @@ async def process_transaction(request: TransactionRequest):
 
 @app.get("/user/{user_id}")
 async def get_user_balance(user_id: str):
-    async with httpx.AsyncClient() as client:
-        log_task = client.get(
-            f"{logging_service_base_url}/logs",
-            timeout=10.0,
-        )
-        counter_task = client.get(
-            f"{counter_service_base_url}/balance/{user_id}",
-            timeout=10.0,
-        )
+    log_task = timed_get(
+        http_client,
+        f"{logging_service_base_url}/logs"
+    )
+    counter_task = timed_get(
+        http_client,
+        f"{counter_service_base_url}/balance/{user_id}"
+    )
 
-        start_logging = time.perf_counter()
-        log_response = await log_task
-        log_response.raise_for_status()
-        logging_elapsed = time.perf_counter() - start_logging
+    (log_response, logging_elapsed), (counter_response, counter_elapsed) = await asyncio.gather(
+        log_task, counter_task
+    )
 
-        start_counter = time.perf_counter()
-        counter_response = await counter_task
-        counter_response.raise_for_status()
-        counter_elapsed = time.perf_counter() - start_counter
+    log_response.raise_for_status()
+    counter_response.raise_for_status()
 
-        log_data = log_response.json()
-        counter_data = counter_response.json()
+    log_data = log_response.json()
+    counter_data = counter_response.json()
 
     global logging_time_total
     global counter_time_total
@@ -119,15 +132,12 @@ async def get_user_balance(user_id: str):
 
 @app.get("/accounts")
 async def get_all_accounts():
-    async with httpx.AsyncClient() as client:
-        start_counter = time.perf_counter()
-        counter_response = await client.get(
-            f"{counter_service_base_url}/accounts",
-            timeout=10.0,
-        )
-        counter_response.raise_for_status()
-        counter_elapsed = time.perf_counter() - start_counter
-        counter_data = counter_response.json()
+    counter_response, counter_elapsed = await timed_get(
+        http_client,
+        f"{counter_service_base_url}/accounts"
+    )
+    counter_response.raise_for_status()
+    counter_data = counter_response.json()
 
     global counter_time_total
     async with metrics_lock:
