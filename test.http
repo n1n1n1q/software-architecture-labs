@@ -1,6 +1,3 @@
-### Reset metrics (optional)
-POST http://localhost:8002/metrics/reset
-
 ### user-a: +100.00
 POST http://localhost:8002/transaction
 Content-Type: application/json
@@ -46,17 +43,47 @@ Content-Type: application/json
 	"amount": 7.75
 }
 
-### Fetch user-a summary (balance should be 74.50)
+### user-d: -20.00
+POST http://localhost:8002/transaction
+Content-Type: application/json
+
+{
+	"user_id": "user-d",
+	"amount": -20.00
+}
+
+### user-d: -22.00
+POST http://localhost:8002/transaction
+Content-Type: application/json
+
+{
+	"user_id": "user-d",
+	"amount": -22.00
+}
+
+### user-d: -25.00
+POST http://localhost:8002/transaction
+Content-Type: application/json
+
+{
+	"user_id": "user-d",
+	"amount": -25.00
+}
+
+###
 GET http://localhost:8002/user/user-a
 
-### Fetch user-b summary (balance should be 30.00)
+###
 GET http://localhost:8002/user/user-b
 
-### Fetch user-c summary (balance should be 7.75)
+###
 GET http://localhost:8002/user/user-c
 
-### Fetch all accounts
+###
+GET http://localhost:8002/user/user-d
+
+###
 GET http://localhost:8002/accounts
 
-### Fetch metrics
+###
 GET http://localhost:8002/metrics
