@@ -1,6 +1,7 @@
+import asyncio
 from pydantic import BaseModel
-from fastapi import FastAPI, Request
-import requests
+from fastapi import FastAPI
+
 app = FastAPI()
 
 class LogRequest(BaseModel):
@@ -10,18 +11,21 @@ class LogRequest(BaseModel):
     timestamp: str
 
 transactions = {}
+transactions_lock = asyncio.Lock()
 
 @app.post("/log")
 async def log_transaction(log_request: LogRequest):
-    transactions[log_request.transaction_id] = {
-        "user_id": log_request.user_id,
-        "amount": log_request.amount,
-        "timestamp": log_request.timestamp,
-    }
-    print(transactions[log_request.transaction_id])
-    # requests.post
+    async with transactions_lock:
+        transactions[log_request.transaction_id] = {
+            "user_id": log_request.user_id,
+            "amount": log_request.amount,
+            "timestamp": log_request.timestamp,
+        }
+        print(f"Logged transaction: {log_request.transaction_id}")
     return {"message": "Transaction logged successfully"}
 
 @app.get("/logs")
 async def get_logs():
-    return {"transactions": transactions}
+    async with transactions_lock:
+        transactions_copy = dict(transactions)
+    return {"transactions": transactions_copy}
