@@ -67,7 +67,7 @@ async def process_transaction(request: TransactionRequest):
     )
     
     (log_response, logging_elapsed), (counter_response, counter_elapsed) = await asyncio.gather(
-        log_task, counter_task
+        log_task, counter_task, return_exceptions=True
     )
     
     log_response.raise_for_status()
