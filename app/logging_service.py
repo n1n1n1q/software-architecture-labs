@@ -111,7 +111,12 @@ async def lifespan(app: FastAPI):
 
     try:
         print(f"[{instance_id}] Starting gRPC server on 0.0.0.0:{grpc_port}...", flush=True)
-        grpc_server = grpc.aio.server()
+        grpc_server = grpc.aio.server(
+            options=[
+                ("grpc.max_send_message_length", 32 * 1024 * 1024),
+                ("grpc.max_receive_message_length", 32 * 1024 * 1024),
+            ]
+        )
         grpc_handler = grpc.method_handlers_generic_handler(
             "logging.LoggingService",
             {

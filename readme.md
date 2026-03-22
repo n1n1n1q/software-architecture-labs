@@ -123,3 +123,64 @@ docker compose stop hz-node2
 ![alt text](./assets/image-14.png)  
 
 ## Перевірка стресостійкості
+Важливо перевірити продуктивність системи. Для цього було створено скрипт [`perf_client.py`](./perf_client.py).  
+
+> [!IMPORTANT]
+> Оскільки мій лептоп не має дуже потужного процесора, я попросив [колегу](https://www.github.com/annastasyshyn) з MacBook Pro M1 проранити тести.  
+
+Було розглягуто 2 сценарії:  
+
+> *"10 клієнтів одночасно роблять по 10К однакових транзакцій по додаванню 1 на свій рахунок. У результаті кінцеве значення балансу на 10-и рахунках має бути по 10К."*  
+`python perf_client.py --clients 10 --requests-per-client 10000 --amount 1 --verify`  
+Було отримано наступні результати:   
+
+*Для непаралельної імлпементації:*
+```
+Total requests: 100000
+Elapsed seconds: 218.5242
+Requests per second: 457.62
+Logging total seconds: 1212.0889
+Counter total seconds: 1182.8852
+Accounts: {'user-0': 10000.0, 'user-5': 10000.0, 'user-1': 10000.0, 'user-2': 10000.0, 'user-3': 10000.0, 'user-6': 10000.0, 'user-4': 10000.0, 'user-7': 10000.0, 'user-9': 10000.0, 'user-8': 10000.0}
+```   
+
+*Для паралельної:*  
+
+```
+Total requests: 100000
+Elapsed seconds: 173.6704
+Requests per second: 575.8
+Logging total seconds: 477.4593
+Counter total seconds: 1074.8162
+Accounts: {'user-3': 10000.0, 'user-0': 10000.0, 'user-7': 10000.0, 'user-4': 10000.0, 'user-1': 10000.0, 'user-9': 10000.0, 'user-2': 10000.0, 'user-6': 10000.0, 'user-5': 10000.0, 'user-8': 10000.0}
+```
+
+
+> *"10 клієнтів одночасно роблять по 10К однакових транзакцій по додаванню 1 на один і той самий рахунок. У результаті кінцеве значення балансу на одному рахунках має бути 100К."*  
+`python perf_client.py --clients 10 --requests-per-client 10000 --amount 1 --same-user --verify`  
+Було отримано наступні результати:  
+
+
+*Для непаралельної імплементації:*  
+
+```Total requests: 100000
+Elapsed seconds: 218.5179
+Requests per second: 457.63
+Logging total seconds: 1208.8978
+Counter total seconds: 1186.5043
+User balance: 100000.0
+```
+
+*Для паралельної імлпементації:*
+
+```
+Total requests: 100000
+Elapsed seconds: 159.9501
+Requests per second: 625.2
+Logging total seconds: 433.6909
+Counter total seconds: 1006.4237
+User balance: 100000.0
+```  
+
+
+Можна побачити, що результати всюди зібглися. У випадку з записом на різних клієнтів, різниця менша, проте вона присутня, приблизно 20% (паралельна швидша на 20%), коли у випадку з записом на того самого юзера -- різниця в 3 рази!

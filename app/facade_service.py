@@ -30,7 +30,14 @@ logging_grpc_clients = []
 class LoggingGrpcClient:
     def __init__(self, target: str):
         self.target = target
-        self.channel = grpc.aio.insecure_channel(target)
+        self.channel = grpc.aio.insecure_channel(
+            target,
+            options=[
+                ("grpc.max_send_message_length", 32 * 1024 * 1024),
+                ("grpc.max_receive_message_length", 32 * 1024 * 1024),
+            ]
+        )
+        self
         self.log_transaction = self.channel.unary_unary(
             "/logging.LoggingService/LogTransaction",
             request_serializer=lambda payload: json_dumps(payload),
