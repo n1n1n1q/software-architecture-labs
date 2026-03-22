@@ -1,29 +1,127 @@
-version: "3.9"
-
 services:
-  logging-service:
+  hz-node1:
+    image: hazelcast/hazelcast:5.6.0
+    container_name: hz-node1
+    ports:
+      - "5701:5701"
+    volumes:
+      - ./hazelcast.xml:/opt/hazelcast/config/hazelcast-docker.xml
+    environment:
+      - HZ_CLUSTERNAME=hello-world
+      - HZ_NETWORK_PUBLICADDRESS=hz-node1:5701
+
+  hz-node2:
+    image: hazelcast/hazelcast:5.6.0
+    container_name: hz-node2
+    ports:
+      - "5702:5701"
+    volumes:
+      - ./hazelcast.xml:/opt/hazelcast/config/hazelcast-docker.xml
+    environment:
+      - HZ_CLUSTERNAME=hello-world
+      - HZ_NETWORK_PUBLICADDRESS=hz-node2:5701
+
+  hz-node3:
+    image: hazelcast/hazelcast:5.6.0
+    container_name: hz-node3
+    ports:
+      - "5703:5701"
+    volumes:
+      - ./hazelcast.xml:/opt/hazelcast/config/hazelcast-docker.xml
+    environment:
+      - HZ_CLUSTERNAME=hello-world
+      - HZ_NETWORK_PUBLICADDRESS=hz-node3:5701
+
+  logging-service-1:
     build:
       context: ./app
       dockerfile: logging.Dockerfile
+    environment:
+      LOGGING_INSTANCE_ID: logging-service-1
+      LOGGING_GRPC_PORT: 50051
+      HAZELCAST_CLUSTER_NAME: hello-world
+      HAZELCAST_MEMBERS: hz-node1:5701,hz-node2:5701,hz-node3:5701
+      HAZELCAST_MAP_NAME: transactions-map
     ports:
       - "8000:8000"
+      - "50051:50051"
+    depends_on:
+      - hz-node1
+      - hz-node2
+      - hz-node3
+
+  logging-service-2:
+    build:
+      context: ./app
+      dockerfile: logging.Dockerfile
+    environment:
+      LOGGING_INSTANCE_ID: logging-service-2
+      LOGGING_GRPC_PORT: 50051
+      HAZELCAST_CLUSTER_NAME: hello-world
+      HAZELCAST_MEMBERS: hz-node1:5701,hz-node2:5701,hz-node3:5701
+      HAZELCAST_MAP_NAME: transactions-map
+    ports:
+      - "8003:8000"
+      - "50052:50051"
+    depends_on:
+      - hz-node1
+      - hz-node2
+      - hz-node3
+
+  logging-service-3:
+    build:
+      context: ./app
+      dockerfile: logging.Dockerfile
+    environment:
+      LOGGING_INSTANCE_ID: logging-service-3
+      LOGGING_GRPC_PORT: 50051
+      HAZELCAST_CLUSTER_NAME: hello-world
+      HAZELCAST_MEMBERS: hz-node1:5701,hz-node2:5701,hz-node3:5701
+      HAZELCAST_MAP_NAME: transactions-map
+    ports:
+      - "8004:8000"
+      - "50053:50051"
+    depends_on:
+      - hz-node1
+      - hz-node2
+      - hz-node3
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: counterdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
   counter-service:
     build:
       context: ./app
       dockerfile: counter.Dockerfile
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/counterdb
     ports:
       - "8001:8001"
+    depends_on:
+      - postgres
 
   facade-service:
     build:
       context: ./app
       dockerfile: facade.Dockerfile
     environment:
-      LOGGING_SERVICE_URL: http://logging-service:8000
+      LOGGING_SERVICE_TARGETS: logging-service-1:50051,logging-service-2:50051,logging-service-3:50051
       COUNTER_SERVICE_URL: http://counter-service:8001
     ports:
       - "8002:8002"
     depends_on:
-      - logging-service
+      - logging-service-1
+      - logging-service-2
+      - logging-service-3
       - counter-service
+
+volumes:
+  postgres_data:

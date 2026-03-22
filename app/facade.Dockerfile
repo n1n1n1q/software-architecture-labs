@@ -7,7 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . ./
 
-ENV LOGGING_SERVICE_URL=http://logging-service:8000
+ENV LOGGING_SERVICE_TARGETS=logging-service-1:50051,logging-service-2:50051,logging-service-3:50051
 ENV COUNTER_SERVICE_URL=http://counter-service:8001
 
 EXPOSE 8002

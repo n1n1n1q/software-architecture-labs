@@ -1,86 +1,98 @@
-### user-a: +100.00
+### msg1
 POST http://localhost:8002/transaction
 Content-Type: application/json
 
 {
-	"user_id": "user-a",
-	"amount": 100.00
+	"user_id": "msg1",
+	"amount": 1.00
 }
 
-### user-a: -25.50
+### msg2
 POST http://localhost:8002/transaction
 Content-Type: application/json
 
 {
-	"user_id": "user-a",
-	"amount": -25.50
+	"user_id": "msg2",
+	"amount": 2.00
 }
 
-### user-b: +40.00
+### msg3
 POST http://localhost:8002/transaction
 Content-Type: application/json
 
 {
-	"user_id": "user-b",
-	"amount": 40.00
+	"user_id": "msg3",
+	"amount": 3.00
 }
 
-### user-b: -10.00
+### msg4
 POST http://localhost:8002/transaction
 Content-Type: application/json
 
 {
-	"user_id": "user-b",
-	"amount": -10.00
+	"user_id": "msg4",
+	"amount": 4.00
 }
 
-### user-c: +7.75
+### msg5
 POST http://localhost:8002/transaction
 Content-Type: application/json
 
 {
-	"user_id": "user-c",
-	"amount": 7.75
+	"user_id": "msg5",
+	"amount": 5.00
 }
 
-### user-d: -20.00
+### msg6
 POST http://localhost:8002/transaction
 Content-Type: application/json
 
 {
-	"user_id": "user-d",
-	"amount": -20.00
+	"user_id": "msg6",
+	"amount": 6.00
 }
 
-### user-d: -22.00
+### msg7
 POST http://localhost:8002/transaction
 Content-Type: application/json
 
 {
-	"user_id": "user-d",
-	"amount": -22.00
+	"user_id": "msg7",
+	"amount": 7.00
 }
 
-### user-d: -25.00
+### msg8
 POST http://localhost:8002/transaction
 Content-Type: application/json
 
 {
-	"user_id": "user-d",
-	"amount": -25.00
+	"user_id": "msg8",
+	"amount": 8.00
+}
+
+### msg9
+POST http://localhost:8002/transaction
+Content-Type: application/json
+
+{
+	"user_id": "msg9",
+	"amount": 9.00
+}
+
+### msg10
+POST http://localhost:8002/transaction
+Content-Type: application/json
+
+{
+	"user_id": "msg10",
+	"amount": 10.00
 }
 
 ###
-GET http://localhost:8002/user/user-a
+GET http://localhost:8002/user/msg1
 
 ###
-GET http://localhost:8002/user/user-b
-
-###
-GET http://localhost:8002/user/user-c
-
-###
-GET http://localhost:8002/user/user-d
+GET http://localhost:8002/user/msg10
 
 ###
 GET http://localhost:8002/accounts
