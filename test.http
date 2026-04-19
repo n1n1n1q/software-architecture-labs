@@ -1,3 +1,12 @@
+###
+GET http://localhost:8500/services
+
+###
+GET http://localhost:8500/config
+
+###
+GET http://localhost:8002/services
+
 ### msg1
 POST http://localhost:8002/transaction
 Content-Type: application/json
@@ -88,14 +97,52 @@ Content-Type: application/json
 	"amount": 10.00
 }
 
-###
+### 
 GET http://localhost:8002/user/msg1
 
 ###
 GET http://localhost:8002/user/msg10
 
-###
+### read all balances
 GET http://localhost:8002/accounts
 
-###
+### facade metrics
 GET http://localhost:8002/metrics
+
+### msg1 new
+POST http://localhost:8002/transaction
+Content-Type: application/json
+
+{
+	"user_id": "msg1",
+	"amount": 67.00
+}
+
+### msg2 new
+POST http://localhost:8002/transaction
+Content-Type: application/json
+
+{
+	"user_id": "msg2",
+	"amount": 68.00
+}
+
+### msg3 new
+POST http://localhost:8002/transaction
+Content-Type: application/json
+
+{
+	"user_id": "msg3",
+	"amount": 69.00
+}
+
+###
+GET http://localhost:8002/user/msg1
+
+###
+GET http://localhost:8002/user/msg2
+###
+GET http://localhost:8002/user/msg3
+
+###
+GET http://localhost:8002/accounts

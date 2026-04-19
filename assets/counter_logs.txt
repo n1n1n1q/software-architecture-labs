@@ -1,0 +1,52 @@
+PS D:\edu\software-architecture-labs> docker logs counter-service
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+[counter-service-1] Database pool ready (postgresql://postgres:postgres@postgres:5432/counterdb)
+[service-registry] Registered counter-service/counter-service-1 -> http://counter-service:8001 on http://config-server:8500 (attempt 1)
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+Topic balance-updates not found in cluster metadata
+Group Coordinator Request failed: [Error 15] GroupCoordinatorNotAvailableError
+Marking the coordinator dead (node 1)for group counter-service.
+Marking the coordinator dead (node 1)for group counter-service.
+Marking the coordinator dead (node 1)for group counter-service.
+Marking the coordinator dead (node 1)for group counter-service.
+Marking the coordinator dead (node 1)for group counter-service.
+Marking the coordinator dead (node 1)for group counter-service.
+Marking the coordinator dead (node 1)for group counter-service.
+[counter-service-1] Kafka consumer started (attempt 1): bootstrap=kafka:29092 topic=balance-updates group=counter-service
+[counter-service-1] Consumed Kafka message offset=0 partition=0 key=b'msg1' value={'transaction_id': 'a28f3da8-4389-4c2d-852c-b6df0aa832e3', 'user_id': 'msg1', 'amount': 1.0, 'timestamp': '2026-04-19T18:00:54.504571'} 
+[counter-service-1] Applied balance update tx=a28f3da8-4389-4c2d-852c-b6df0aa832e3 user=msg1 amount=1.0 -> new_balance=1.0
+[counter-service-1] Consumed Kafka message offset=0 partition=1 key=b'msg2' value={'transaction_id': '40f6dfa8-1b7b-4830-b6f8-72ea940e29e3', 'user_id': 'msg2', 'amount': 2.0, 'timestamp': '2026-04-19T18:01:06.885096'} 
+[counter-service-1] Applied balance update tx=40f6dfa8-1b7b-4830-b6f8-72ea940e29e3 user=msg2 amount=2.0 -> new_balance=2.0
+[counter-service-1] Consumed Kafka message offset=1 partition=1 key=b'msg3' value={'transaction_id': '96d7ef90-98d2-4efb-b08b-746d9da2cad4', 'user_id': 'msg3', 'amount': 3.0, 'timestamp': '2026-04-19T18:01:09.171762'} 
+[counter-service-1] Applied balance update tx=96d7ef90-98d2-4efb-b08b-746d9da2cad4 user=msg3 amount=3.0 -> new_balance=3.0
+[counter-service-1] Consumed Kafka message offset=2 partition=1 key=b'msg4' value={'transaction_id': '0875439c-fe4d-4b91-95d0-cf2bd3e24fae', 'user_id': 'msg4', 'amount': 4.0, 'timestamp': '2026-04-19T18:01:11.342743'} 
+[counter-service-1] Applied balance update tx=0875439c-fe4d-4b91-95d0-cf2bd3e24fae user=msg4 amount=4.0 -> new_balance=4.0
+[counter-service-1] Consumed Kafka message offset=0 partition=2 key=b'msg5' value={'transaction_id': '44b2886d-9f12-4286-aec8-a45ed199cb0a', 'user_id': 'msg5', 'amount': 5.0, 'timestamp': '2026-04-19T18:01:13.302061'} 
+[counter-service-1] Applied balance update tx=44b2886d-9f12-4286-aec8-a45ed199cb0a user=msg5 amount=5.0 -> new_balance=5.0
+[counter-service-1] Consumed Kafka message offset=1 partition=2 key=b'msg6' value={'transaction_id': 'c10bb47e-cd43-4c90-a547-de2986f22e25', 'user_id': 'msg6', 'amount': 6.0, 'timestamp': '2026-04-19T18:01:27.082423'} 
+[counter-service-1] Applied balance update tx=c10bb47e-cd43-4c90-a547-de2986f22e25 user=msg6 amount=6.0 -> new_balance=6.0
+[counter-service-1] Consumed Kafka message offset=3 partition=1 key=b'msg7' value={'transaction_id': '4f051da6-1772-4c50-be22-e354f7bf67cb', 'user_id': 'msg7', 'amount': 7.0, 'timestamp': '2026-04-19T18:01:29.759672'} 
+[counter-service-1] Applied balance update tx=4f051da6-1772-4c50-be22-e354f7bf67cb user=msg7 amount=7.0 -> new_balance=7.0
+[counter-service-1] Consumed Kafka message offset=4 partition=1 key=b'msg8' value={'transaction_id': 'd1d341e6-a34c-419e-8845-badae20b0b48', 'user_id': 'msg8', 'amount': 8.0, 'timestamp': '2026-04-19T18:01:31.195787'} 
+[counter-service-1] Applied balance update tx=d1d341e6-a34c-419e-8845-badae20b0b48 user=msg8 amount=8.0 -> new_balance=8.0
+[counter-service-1] Consumed Kafka message offset=1 partition=0 key=b'msg9' value={'transaction_id': 'b9f04283-ef61-4d64-84b8-9378ae1de8e9', 'user_id': 'msg9', 'amount': 9.0, 'timestamp': '2026-04-19T18:01:32.213214'} 
+[counter-service-1] Applied balance update tx=b9f04283-ef61-4d64-84b8-9378ae1de8e9 user=msg9 amount=9.0 -> new_balance=9.0
+[counter-service-1] Consumed Kafka message offset=2 partition=2 key=b'msg10' value={'transaction_id': '5d42a56a-e818-4af7-86da-5ce28b644b3a', 'user_id': 'msg10', 'amount': 10.0, 'timestamp': '2026-04-19T18:01:33.716275'}
+[counter-service-1] Applied balance update tx=5d42a56a-e818-4af7-86da-5ce28b644b3a user=msg10 amount=10.0 -> new_balance=10.0
+INFO:     172.18.0.12:55254 - "GET /balance/msg1 HTTP/1.1" 200 OK
+INFO:     172.18.0.12:43564 - "GET /balance/msg10 HTTP/1.1" 200 OK
+INFO:     172.18.0.12:44636 - "GET /accounts HTTP/1.1" 200 OK
+Failed fetch messages from 1: [Error 7] RequestTimedOutError
+Heartbeat failed: local member_id was not recognized; resetting and re-joining group
+Heartbeat session expired - marking coordinator dead
+Marking the coordinator dead (node 1)for group counter-service.
+[counter-service-1] Consumed Kafka message offset=2 partition=0 key=b'msg1' value={'transaction_id': '305d2247-4333-456c-95c7-e65af523351b', 'user_id': 'msg1', 'amount': 67.0, 'timestamp': '2026-04-19T18:05:36.104041'}
+[counter-service-1] Applied balance update tx=305d2247-4333-456c-95c7-e65af523351b user=msg1 amount=67.0 -> new_balance=68.0
+[counter-service-1] Consumed Kafka message offset=5 partition=1 key=b'msg2' value={'transaction_id': 'a962a9df-d26e-4111-8f6c-083cd1787a0e', 'user_id': 'msg2', 'amount': 68.0, 'timestamp': '2026-04-19T18:05:52.209191'}
+[counter-service-1] Applied balance update tx=a962a9df-d26e-4111-8f6c-083cd1787a0e user=msg2 amount=68.0 -> new_balance=70.0
+[counter-service-1] Consumed Kafka message offset=6 partition=1 key=b'msg3' value={'transaction_id': '79971763-e5ad-4805-9557-944048d188a3', 'user_id': 'msg3', 'amount': 69.0, 'timestamp': '2026-04-19T18:06:04.264615'}
+[counter-service-1] Applied balance update tx=79971763-e5ad-4805-9557-944048d188a3 user=msg3 amount=69.0 -> new_balance=72.0
+INFO:     172.18.0.12:39300 - "GET /accounts HTTP/1.1" 200 OK
+PS D:\edu\software-architecture-labs>

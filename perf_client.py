@@ -9,12 +9,24 @@ from tqdm.asyncio import tqdm
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Facade performance client")
-    parser.add_argument("--base-url", default="http://localhost:8002", help="Facade base URL")
-    parser.add_argument("--clients", type=int, default=10, help="Number of concurrent clients")
-    parser.add_argument("--requests-per-client", type=int, default=10000, help="Requests per client")
-    parser.add_argument("--amount", type=float, default=1.0, help="Amount per transaction")
-    parser.add_argument("--same-user", action="store_true", help="Use same user for all clients")
-    parser.add_argument("--verify", action="store_true", help="Verify balances after run")
+    parser.add_argument(
+        "--base-url", default="http://localhost:8002", help="Facade base URL"
+    )
+    parser.add_argument(
+        "--clients", type=int, default=10, help="Number of concurrent clients"
+    )
+    parser.add_argument(
+        "--requests-per-client", type=int, default=10000, help="Requests per client"
+    )
+    parser.add_argument(
+        "--amount", type=float, default=1.0, help="Amount per transaction"
+    )
+    parser.add_argument(
+        "--same-user", action="store_true", help="Use same user for all clients"
+    )
+    parser.add_argument(
+        "--verify", action="store_true", help="Verify balances after run"
+    )
     return parser.parse_args()
 
 
@@ -51,7 +63,9 @@ async def fetch_accounts(client: httpx.AsyncClient, base_url: str) -> Dict[str, 
     return response.json().get("accounts", {})
 
 
-async def fetch_user(client: httpx.AsyncClient, base_url: str, user_id: str) -> Dict[str, float]:
+async def fetch_user(
+    client: httpx.AsyncClient, base_url: str, user_id: str
+) -> Dict[str, float]:
     response = await client.get(f"{base_url}/user/{user_id}", timeout=30.0)
     response.raise_for_status()
     return response.json()
@@ -61,7 +75,9 @@ async def main() -> None:
     args = parse_args()
 
     total_requests = args.clients * args.requests_per_client
-    user_ids = ["user-0" if args.same_user else f"user-{i}" for i in range(args.clients)]
+    user_ids = [
+        "user-0" if args.same_user else f"user-{i}" for i in range(args.clients)
+    ]
 
     async with httpx.AsyncClient() as client:
         await reset_metrics(client, args.base_url)
@@ -80,7 +96,7 @@ async def main() -> None:
                     progress,
                 )
                 tasks.append(task)
-            
+
             await asyncio.gather(*tasks)
             elapsed = time.perf_counter() - start
         finally:
@@ -92,8 +108,14 @@ async def main() -> None:
         print("Total requests:", total_requests)
         print("Elapsed seconds:", round(elapsed, 4))
         print("Requests per second:", round(rps, 2))
-        print("Logging total seconds:", round(metrics.get("logging_time_total_sec", 0.0), 4))
-        print("Counter total seconds:", round(metrics.get("counter_time_total_sec", 0.0), 4))
+        print(
+            "Logging total seconds:",
+            round(metrics.get("logging_time_total_sec", 0.0), 4),
+        )
+        print(
+            "Counter total seconds:",
+            round(metrics.get("counter_time_total_sec", 0.0), 4),
+        )
 
         if args.verify:
             if args.same_user:
