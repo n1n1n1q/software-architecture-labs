@@ -1,106 +1,90 @@
-﻿# HW 4
-Я обрав варіант з Kafka.  
+# Homework 5
 
-## Інсталяція 
+Ця реалізація переводить систему на Kubernetes і прибирає статичні IP/порти між мікросервісами.
 
-Аби підняти сервіси, слід використати docker compose.  
 
-```
-docker compose up --build -d
+## Installation
+
+Підняти minicube:
+
+```bash
+minikube start --cpus=4 --memory=8192 --driver=docker
+minikube status
+kubectl cluster-info
 ```  
 
-## Демонстрація  
-### Коректність білду
-Спочатку, я збілдив докер, і перевірив, що всі контейнери працюють:  
+Білд докер імеджів:
+```bash
+docker build -t software-architecture-labs/facade-service:lab5 -f app/facade.Dockerfile app
+docker build -t software-architecture-labs/logging-service:lab5 -f app/logging.Dockerfile app
+docker build -t software-architecture-labs/counter-service:lab5 -f app/counter.Dockerfile app
+```
 
-![](assets/containers_ps.png)  
-
-*через CLI*  
-
-
-![](assets/containers_gui.png)  
-
-*та через GUI*  
-
-
-Опісля, можна подивитися на базові endpoints:  
-
-![](assets/config.png)   
-
-![](assets/services.png)  
-
-![](assets/services2.png)  
-
-### Коректність роботи черги  
-
-Далі, я надіслав кілька POST-запитів з `test.http`:   
-
-![](assets/msg1_sent.png)  
+Завантаження їх у Minikube:
+```bash
+minikube image load software-architecture-labs/facade-service:lab5
+minikube image load software-architecture-labs/counter-service:lab5
+minikube image load software-architecture-labs/logging-service:lab5
+```
 
 
-![](assets/msg5_sent.png)  
+```bash
+
+kubectl apply -k k8s
+
+kubectl get ns
+
+kubectl -n micro-lab5 get all --sort-by=.metadata.creationTimestamp
+```
 
 
-![](assets/msg10_sent.png)  
+```bash
+kubectl -n micro-lab5 get pods -w
 
-(приклад успішно надісланих реквесті, можна побачити, що кожен має різні пари offsets та partitions)  
+kubectl -n micro-lab5 describe pod <pod-name>
+kubectl -n micro-lab5 logs <pod-name>
+```
 
-Перевіримо загально акаунти:  
+Коли всі pods будуть Ready, можна йти далі.
 
-![](assets/accounts.png)  
 
-Також, можна побачити в логах, що різні ноди отримують різні порції даних (є трохи запитів з наступної частини завдання, проте це не заважає демонстрації роботи черги):  
-- [`./assets/logging_logs_pause.txt`](assets/logging_logs_pause.txt)  
-- [`./assets/counter_logs.txt`](assets/counter_logs.txt)  
+```bash
+kubectl -n micro-lab5 port-forward svc/facade-service 8002:8002
+```
 
-### Відмовостійкість  
+## Testing
 
-Тепер слід перевірити відмовостійкість у кейсах, коли падає counter.  
+### Basic HTTP
 
-Спочатку, через `docker pause` я зупини counter:  
+### Fail protection
+```bash
+kubectl get deploy -n micro-lab5
+kubectl scale deploy/facade-service --replicas=2 -n micro-lab5
+kubectl scale deploy/logging-service --replicas=2 -n micro-lab5
+kubectl scale deploy/counter-service --replicas=2 -n micro-lab5
+```
 
-![](assets/pause.png)  
 
-Опісля, я зробив три нові транзакції:  
+## Performance 
+```bash
+curl -X POST http://localhost:8002/metrics/reset
 
-![](assets/msg1_pause.png)  
+python perf_client.py \
+  --base-url http://localhost:8002 \
+  --clients 10 \
+  --requests-per-client 1000 \
+  --verify
 
-![](assets/msg2_pause.png)  
+```
 
-![](assets/msg3_pause.png)  
+```bash
+curl -X POST http://localhost:8002/metrics/reset
 
-Можемо перевірити конкретні рахунки:  
+python perf_client.py \
+  --base-url http://localhost:8002 \
+  --clients 10 \
+  --requests-per-client 1000 \
+  --same-user \
+  --verify
+```
 
-![](assets/msg1_check_pause.png)  
-
-![](assets/msg2_check_pause.png)  
-
-![](assets/msg3_check_pause.png)  
-
-Перевіримо всі рахунки:  
-
-![](assets/accounts_pause.png)  
-
-Можн апобачити, що баланси є null, оскільки counter впав.
-
-Можна перевірити стан Kafka: 
-
-![](assets/kafka_check_pause.png)  
-
-Як видно з логів, зараз є lags, що свідчить про те, що меседжі ще не дійшли.  
-
-Тепер, розморозимо counter service.  
-
-Логи можна побачити у наступному файлі -- [](assets/unpause_logs.txt).  
-
-Також, перевіримо Kafka:  
-
-![](assets/kafka_check_unpause.png)  
-
-Як можна побачити, зараз немає lag. 
-
-Перевіримо тепер GET зі всіма балансами: 
-
-![](assets/accounts_unpause.png)  
-
-Можна побачити, що транзакції дійшли, і тепер все добре! 

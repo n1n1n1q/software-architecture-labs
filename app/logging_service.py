@@ -8,19 +8,22 @@ import hazelcast
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from service_registry import ConfigServerClient
+from kubernetes_client import KubernetesApiClient
 
 service_name = os.getenv("SERVICE_NAME", "logging-service")
-instance_id = os.getenv("LOGGING_INSTANCE_ID", socket.gethostname())
+instance_id = os.getenv(
+    "LOGGING_INSTANCE_ID",
+    os.getenv("POD_NAME", socket.gethostname()),
+)
 grpc_port = int(os.getenv("LOGGING_GRPC_PORT", "50051"))
-self_address = os.getenv("SELF_ADDRESS", f"{instance_id}:{grpc_port}")
+configmap_name = os.getenv("APP_CONFIGMAP_NAME", "microservices-config")
 
 hazelcast_map_name_default = os.getenv("HAZELCAST_MAP_NAME", "transactions-map")
 
 hz_client = None
 hz_map = None
 grpc_server = None
-config_client: ConfigServerClient | None = None
+k8s_client: KubernetesApiClient | None = None
 
 
 def encode_payload(payload: dict) -> bytes:
@@ -88,22 +91,27 @@ async def grpc_get_logs(request: dict, context):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global hz_client, hz_map, grpc_server, config_client
+    global hz_client, hz_map, grpc_server, k8s_client
 
-    config_client = ConfigServerClient()
+    k8s_client = KubernetesApiClient()
 
-    hazelcast_cluster_name = await config_client.get_config_with_retry(
-        "hazelcast.cluster_name"
+    hazelcast_cluster_name = await k8s_client.get_config_value_with_retry(
+        configmap_name,
+        "hazelcast.cluster_name",
     )
-    hazelcast_members_raw = await config_client.get_config_with_retry(
-        "hazelcast.members"
+    hazelcast_members_raw = await k8s_client.get_config_value_with_retry(
+        configmap_name,
+        "hazelcast.members",
     )
     hazelcast_map_name = hazelcast_map_name_default
     try:
-        hazelcast_map_name = await config_client.get_config("hazelcast.map_name")
+        hazelcast_map_name = await k8s_client.get_config_value(
+            configmap_name,
+            "hazelcast.map_name",
+        )
     except Exception as exc:
         print(
-            f"[{instance_id}] WARN: could not fetch hazelcast.map_name from config-server: {exc}",
+            f"[{instance_id}] WARN: could not fetch hazelcast.map_name from ConfigMap: {exc}",
             flush=True,
         )
 
@@ -148,14 +156,11 @@ async def lifespan(app: FastAPI):
     await grpc_server.start()
     print(f"[{instance_id}] gRPC server listening on 0.0.0.0:{grpc_port}", flush=True)
 
-    await config_client.register(service_name, instance_id, self_address)
-
     yield
 
     print(f"[{instance_id}] Shutting down ...", flush=True)
-    if config_client is not None:
-        await config_client.unregister(service_name, instance_id)
-        await config_client.close()
+    if k8s_client is not None:
+        await k8s_client.close()
     if grpc_server is not None:
         await grpc_server.stop(5)
     if hz_client is not None:

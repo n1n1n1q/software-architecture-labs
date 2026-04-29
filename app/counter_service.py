@@ -10,20 +10,20 @@ from aiokafka.errors import KafkaConnectionError, KafkaError
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from service_registry import ConfigServerClient
+from kubernetes_client import KubernetesApiClient
 
 database_url = os.getenv(
     "DATABASE_URL", "postgresql://postgres:postgres@postgres:5432/counterdb"
 )
 service_name = os.getenv("SERVICE_NAME", "counter-service")
-instance_id = os.getenv("INSTANCE_ID", socket.gethostname())
+instance_id = os.getenv("INSTANCE_ID", os.getenv("POD_NAME", socket.gethostname()))
 http_port = int(os.getenv("HTTP_PORT", "8001"))
-self_address = os.getenv("SELF_ADDRESS", f"http://{instance_id}:{http_port}")
+configmap_name = os.getenv("APP_CONFIGMAP_NAME", "microservices-config")
 
 db_pool: asyncpg.Pool | None = None
 kafka_consumer: AIOKafkaConsumer | None = None
 consumer_task: asyncio.Task | None = None
-config_client: ConfigServerClient | None = None
+k8s_client: KubernetesApiClient | None = None
 
 
 async def apply_balance_update(
@@ -118,7 +118,7 @@ async def consume_balance_updates(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global db_pool, consumer_task, config_client
+    global db_pool, consumer_task, k8s_client
 
     db_pool = await asyncpg.create_pool(dsn=database_url, min_size=1, max_size=10)
     async with db_pool.acquire() as connection:
@@ -130,15 +130,19 @@ async def lifespan(app: FastAPI):
             """)
     print(f"[{instance_id}] Database pool ready ({database_url})", flush=True)
 
-    config_client = ConfigServerClient()
-    await config_client.register(service_name, instance_id, self_address)
+    k8s_client = KubernetesApiClient()
 
-    bootstrap_servers = await config_client.get_config_with_retry(
-        "kafka.bootstrap.servers"
+    bootstrap_servers = await k8s_client.get_config_value_with_retry(
+        configmap_name,
+        "kafka.bootstrap.servers",
     )
-    topic = await config_client.get_config_with_retry("kafka.balance_updates.topic")
-    group_id = await config_client.get_config_with_retry(
-        "kafka.balance_updates.group_id"
+    topic = await k8s_client.get_config_value_with_retry(
+        configmap_name,
+        "kafka.balance_updates.topic",
+    )
+    group_id = await k8s_client.get_config_value_with_retry(
+        configmap_name,
+        "kafka.balance_updates.group_id",
     )
 
     consumer_task = asyncio.create_task(
@@ -155,9 +159,8 @@ async def lifespan(app: FastAPI):
         except (asyncio.CancelledError, Exception):
             pass
 
-    if config_client is not None:
-        await config_client.unregister(service_name, instance_id)
-        await config_client.close()
+    if k8s_client is not None:
+        await k8s_client.close()
 
     if db_pool is not None:
         await db_pool.close()

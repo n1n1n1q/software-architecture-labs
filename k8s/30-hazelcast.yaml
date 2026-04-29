@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hazelcast-config
+  namespace: micro-lab5
+data:
+  hazelcast-docker.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <hazelcast xmlns="http://www.hazelcast.com/schema/config"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xsi:schemaLocation="http://www.hazelcast.com/schema/config
+               http://www.hazelcast.com/schema/config/hazelcast-config-5.6.xsd">
+      <cluster-name>hello-world</cluster-name>
+      <network>
+        <join>
+          <multicast enabled="false"/>
+          <kubernetes enabled="true">
+            <namespace>micro-lab5</namespace>
+            <service-name>hazelcast-headless</service-name>
+          </kubernetes>
+        </join>
+      </network>
+    </hazelcast>
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hazelcast-headless
+  namespace: micro-lab5
+spec:
+  clusterIP: None
+  selector:
+    app: hazelcast
+  ports:
+    - name: hazelcast
+      protocol: TCP
+      port: 5701
+      targetPort: hazelcast
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hazelcast
+  namespace: micro-lab5
+spec:
+  serviceName: hazelcast-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hazelcast
+  template:
+    metadata:
+      labels:
+        app: hazelcast
+    spec:
+      serviceAccountName: microservices-sa
+      containers:
+        - name: hazelcast
+          image: hazelcast/hazelcast:5.6.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: hazelcast
+              containerPort: 5701
+          env:
+            - name: HZ_CLUSTERNAME
+              value: hello-world
+            - name: HZ_NETWORK_JOIN_MULTICAST_ENABLED
+              value: "false"
+            - name: HZ_NETWORK_JOIN_KUBERNETES_ENABLED
+              value: "true"
+            - name: HZ_NETWORK_JOIN_KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: hazelcast-config
+              mountPath: /opt/hazelcast/config/hazelcast-docker.xml
+              subPath: hazelcast-docker.xml
+          readinessProbe:
+            tcpSocket:
+              port: hazelcast
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: hazelcast
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: hazelcast-config
+          configMap:
+            name: hazelcast-config

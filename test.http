@@ -1,10 +1,7 @@
-###
-GET http://localhost:8500/services
+### health
+GET http://localhost:8002/health
 
-###
-GET http://localhost:8500/config
-
-###
+### discovered services from facade (Kubernetes endpoints)
 GET http://localhost:8002/services
 
 ### msg1
@@ -12,8 +9,8 @@ POST http://localhost:8002/transaction
 Content-Type: application/json
 
 {
-	"user_id": "msg1",
-	"amount": 1.00
+  "user_id": "msg1",
+  "amount": 1.0
 }
 
 ### msg2
@@ -21,8 +18,8 @@ POST http://localhost:8002/transaction
 Content-Type: application/json
 
 {
-	"user_id": "msg2",
-	"amount": 2.00
+  "user_id": "msg2",
+  "amount": 2.0
 }
 
 ### msg3
@@ -30,8 +27,8 @@ POST http://localhost:8002/transaction
 Content-Type: application/json
 
 {
-	"user_id": "msg3",
-	"amount": 3.00
+  "user_id": "msg3",
+  "amount": 3.0
 }
 
 ### msg4
@@ -39,8 +36,8 @@ POST http://localhost:8002/transaction
 Content-Type: application/json
 
 {
-	"user_id": "msg4",
-	"amount": 4.00
+  "user_id": "msg4",
+  "amount": 4.0
 }
 
 ### msg5
@@ -48,101 +45,18 @@ POST http://localhost:8002/transaction
 Content-Type: application/json
 
 {
-	"user_id": "msg5",
-	"amount": 5.00
+  "user_id": "msg5",
+  "amount": 5.0
 }
 
-### msg6
-POST http://localhost:8002/transaction
-Content-Type: application/json
-
-{
-	"user_id": "msg6",
-	"amount": 6.00
-}
-
-### msg7
-POST http://localhost:8002/transaction
-Content-Type: application/json
-
-{
-	"user_id": "msg7",
-	"amount": 7.00
-}
-
-### msg8
-POST http://localhost:8002/transaction
-Content-Type: application/json
-
-{
-	"user_id": "msg8",
-	"amount": 8.00
-}
-
-### msg9
-POST http://localhost:8002/transaction
-Content-Type: application/json
-
-{
-	"user_id": "msg9",
-	"amount": 9.00
-}
-
-### msg10
-POST http://localhost:8002/transaction
-Content-Type: application/json
-
-{
-	"user_id": "msg10",
-	"amount": 10.00
-}
-
-### 
+### get one user
 GET http://localhost:8002/user/msg1
 
-###
-GET http://localhost:8002/user/msg10
-
-### read all balances
+### get all balances
 GET http://localhost:8002/accounts
 
-### facade metrics
+### metrics
 GET http://localhost:8002/metrics
 
-### msg1 new
-POST http://localhost:8002/transaction
-Content-Type: application/json
-
-{
-	"user_id": "msg1",
-	"amount": 67.00
-}
-
-### msg2 new
-POST http://localhost:8002/transaction
-Content-Type: application/json
-
-{
-	"user_id": "msg2",
-	"amount": 68.00
-}
-
-### msg3 new
-POST http://localhost:8002/transaction
-Content-Type: application/json
-
-{
-	"user_id": "msg3",
-	"amount": 69.00
-}
-
-###
-GET http://localhost:8002/user/msg1
-
-###
-GET http://localhost:8002/user/msg2
-###
-GET http://localhost:8002/user/msg3
-
-###
-GET http://localhost:8002/accounts
+### reset metrics
+POST http://localhost:8002/metrics/reset

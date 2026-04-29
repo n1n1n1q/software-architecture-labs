@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: microservices-config
+  namespace: micro-lab5
+data:
+  kafka.bootstrap.servers: kafka:9092
+  kafka.balance_updates.topic: balance-updates
+  kafka.balance_updates.group_id: counter-service
+  hazelcast.cluster_name: hello-world
+  hazelcast.members: hazelcast-0.hazelcast-headless.micro-lab5.svc.cluster.local:5701,hazelcast-1.hazelcast-headless.micro-lab5.svc.cluster.local:5701,hazelcast-2.hazelcast-headless.micro-lab5.svc.cluster.local:5701
+  hazelcast.map_name: transactions-map
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: microservices-secrets
+  namespace: micro-lab5
+type: Opaque
+stringData:
+  DATABASE_URL: postgresql://postgres:postgres@postgres:5432/counterdb
+  POSTGRES_DB: counterdb
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres

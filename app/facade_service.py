@@ -15,22 +15,25 @@ from aiokafka.errors import KafkaConnectionError, KafkaError
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from service_registry import ConfigServerClient
+from kubernetes_client import KubernetesApiClient, ServiceInstance
 
 service_name = os.getenv("SERVICE_NAME", "facade-service")
-instance_id = os.getenv("INSTANCE_ID", socket.gethostname())
+instance_id = os.getenv("INSTANCE_ID", os.getenv("POD_NAME", socket.gethostname()))
 http_port = int(os.getenv("HTTP_PORT", "8002"))
-self_address = os.getenv("SELF_ADDRESS", f"http://{instance_id}:{http_port}")
+configmap_name = os.getenv("APP_CONFIGMAP_NAME", "microservices-config")
 
 logging_service_name = os.getenv("LOGGING_SERVICE_NAME", "logging-service")
 counter_service_name = os.getenv("COUNTER_SERVICE_NAME", "counter-service")
+logging_service_port_name = os.getenv("LOGGING_SERVICE_PORT_NAME", "grpc")
+counter_service_port_name = os.getenv("COUNTER_SERVICE_PORT_NAME", "http")
+facade_service_port_name = os.getenv("FACADE_SERVICE_PORT_NAME", "http")
 
 logging_time_total = 0.0
 counter_time_total = 0.0
 metrics_lock = asyncio.Lock()
 
 http_client: httpx.AsyncClient | None = None
-config_client: ConfigServerClient | None = None
+k8s_client: KubernetesApiClient | None = None
 kafka_producer: AIOKafkaProducer | None = None
 balance_updates_topic: str = "balance-updates"
 
@@ -77,19 +80,20 @@ async def call_logging(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global http_client, config_client, kafka_producer, balance_updates_topic
+    global http_client, k8s_client, kafka_producer, balance_updates_topic
 
     print(f"[{instance_id}] Starting facade-service ...", flush=True)
     http_client = httpx.AsyncClient(timeout=10.0)
 
-    config_client = ConfigServerClient()
-    await config_client.register(service_name, instance_id, self_address)
+    k8s_client = KubernetesApiClient()
 
-    bootstrap_servers = await config_client.get_config_with_retry(
-        "kafka.bootstrap.servers"
+    bootstrap_servers = await k8s_client.get_config_value_with_retry(
+        configmap_name,
+        "kafka.bootstrap.servers",
     )
-    balance_updates_topic = await config_client.get_config_with_retry(
-        "kafka.balance_updates.topic"
+    balance_updates_topic = await k8s_client.get_config_value_with_retry(
+        configmap_name,
+        "kafka.balance_updates.topic",
     )
     print(
         f"[{instance_id}] Kafka config: bootstrap={bootstrap_servers} topic={balance_updates_topic}",
@@ -135,9 +139,8 @@ async def lifespan(app: FastAPI):
     for channel in logging_grpc_channels.values():
         await channel.close()
 
-    if config_client is not None:
-        await config_client.unregister(service_name, instance_id)
-        await config_client.close()
+    if k8s_client is not None:
+        await k8s_client.close()
 
     if http_client is not None:
         await http_client.aclose()
@@ -167,14 +170,21 @@ def normalize_http_url(address: str) -> str:
 
 
 async def discover_logging_targets() -> list[str]:
-    assert config_client is not None
-    addresses = await config_client.discover(logging_service_name)
+    assert k8s_client is not None
+    addresses = await k8s_client.discover_service_addresses(
+        logging_service_name,
+        port_name=logging_service_port_name,
+    )
     return [normalize_grpc_target(address) for address in addresses]
 
 
 async def discover_counter_urls() -> list[str]:
-    assert config_client is not None
-    addresses = await config_client.discover(counter_service_name)
+    assert k8s_client is not None
+    addresses = await k8s_client.discover_service_addresses(
+        counter_service_name,
+        port_name=counter_service_port_name,
+        scheme="http",
+    )
     return [normalize_http_url(address) for address in addresses]
 
 
@@ -183,7 +193,7 @@ async def logging_post_with_failover(payload: dict):
     if not targets:
         raise HTTPException(
             status_code=503,
-            detail="No logging-service instances registered in config-server",
+            detail="No logging-service instances discovered in Kubernetes",
         )
 
     shuffled = random.sample(targets, k=len(targets))
@@ -218,7 +228,7 @@ async def logging_get_with_failover():
     if not targets:
         raise HTTPException(
             status_code=503,
-            detail="No logging-service instances registered in config-server",
+            detail="No logging-service instances discovered in Kubernetes",
         )
 
     shuffled = random.sample(targets, k=len(targets))
@@ -244,7 +254,7 @@ async def counter_get_with_failover(path: str):
     assert http_client is not None
     urls = await discover_counter_urls()
     if not urls:
-        print(f"[{instance_id}] No counter-service instances registered", flush=True)
+        print(f"[{instance_id}] No counter-service instances discovered", flush=True)
         return None, 0.0
 
     shuffled = random.sample(urls, k=len(urls))
@@ -375,12 +385,53 @@ async def get_all_accounts():
 
 @app.get("/services")
 async def get_services():
-    """Convenience endpoint to inspect what facade currently sees in config-server."""
-    if config_client is None:
-        raise HTTPException(status_code=503, detail="config-server client not ready")
-    response = await config_client._client.get(f"{config_client.base_url}/services")
-    response.raise_for_status()
-    return response.json()
+    if k8s_client is None:
+        raise HTTPException(status_code=503, detail="Kubernetes client is not ready")
+
+    service_port_pairs = [
+        (service_name, facade_service_port_name),
+        (logging_service_name, logging_service_port_name),
+        (counter_service_name, counter_service_port_name),
+    ]
+
+    services_snapshot: dict[str, dict] = {}
+    for current_service, current_port_name in service_port_pairs:
+        instances = await k8s_client.get_service_instances(
+            current_service,
+            port_name=current_port_name,
+        )
+        services_snapshot[current_service] = serialize_instances(instances)
+
+    return {
+        "namespace": k8s_client.namespace,
+        "services": services_snapshot,
+    }
+
+
+def serialize_instances(instances: list[ServiceInstance]) -> dict:
+    ready = [
+        {
+            "pod_name": instance.pod_name,
+            "address": instance.host_port,
+        }
+        for instance in instances
+        if instance.ready
+    ]
+    not_ready = [
+        {
+            "pod_name": instance.pod_name,
+            "address": instance.host_port,
+        }
+        for instance in instances
+        if not instance.ready
+    ]
+
+    return {
+        "ready_instances": ready,
+        "not_ready_instances": not_ready,
+        "ready_count": len(ready),
+        "not_ready_count": len(not_ready),
+    }
 
 
 @app.get("/metrics")
@@ -388,6 +439,7 @@ async def get_metrics():
     async with metrics_lock:
         return {
             "logging_time_total_sec": logging_time_total,
+            "counter_time_total_sec": counter_time_total,
             "counter_kafka_publish_total_sec": counter_time_total,
         }
 
@@ -399,3 +451,8 @@ async def reset_metrics():
         logging_time_total = 0.0
         counter_time_total = 0.0
     return {"message": "Metrics reset"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "instance_id": instance_id}
