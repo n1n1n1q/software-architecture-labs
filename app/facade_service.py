@@ -1,7 +1,8 @@
 import asyncio
 import datetime
+import itertools
+import json
 import os
-import random
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -25,6 +26,17 @@ counter_time_total = 0.0
 metrics_lock = asyncio.Lock()
 http_client = None
 logging_grpc_clients = []
+_grpc_round_robin = None
+
+
+def json_dumps(payload: dict) -> bytes:
+    return json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+
+def json_loads(raw: bytes) -> dict:
+    if not raw:
+        return {}
+    return json.loads(raw.decode("utf-8"))
 
 
 class LoggingGrpcClient:
@@ -37,43 +49,30 @@ class LoggingGrpcClient:
                 ("grpc.max_receive_message_length", 32 * 1024 * 1024),
             ]
         )
-        self
         self.log_transaction = self.channel.unary_unary(
             "/logging.LoggingService/LogTransaction",
-            request_serializer=lambda payload: json_dumps(payload),
-            response_deserializer=lambda raw: json_loads(raw),
+            request_serializer=json_dumps,
+            response_deserializer=json_loads,
         )
         self.get_logs = self.channel.unary_unary(
             "/logging.LoggingService/GetLogs",
-            request_serializer=lambda payload: json_dumps(payload),
-            response_deserializer=lambda raw: json_loads(raw),
+            request_serializer=json_dumps,
+            response_deserializer=json_loads,
         )
 
     async def close(self):
         await self.channel.close()
 
 
-def json_dumps(payload: dict) -> bytes:
-    import json
-
-    return json.dumps(payload, separators=(",", ":")).encode("utf-8")
-
-
-def json_loads(raw: bytes) -> dict:
-    import json
-
-    if not raw:
-        return {}
-    return json.loads(raw.decode("utf-8"))
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global http_client
     global logging_grpc_clients
+    global _grpc_round_robin
     print(f"Facade Service: Initializing gRPC clients for targets: {logging_service_targets}", flush=True)
     http_client = httpx.AsyncClient(timeout=10.0)
     logging_grpc_clients = [LoggingGrpcClient(target) for target in logging_service_targets]
+    _grpc_round_robin = itertools.cycle(range(len(logging_grpc_clients)))
     print(f"Facade Service: Initialized {len(logging_grpc_clients)} gRPC clients", flush=True)
     yield
     for client in logging_grpc_clients:
@@ -102,22 +101,26 @@ async def timed_get(client, url):
     return response, elapsed
 
 
+def _ordered_clients():
+    n = len(logging_grpc_clients)
+    if n == 0:
+        return []
+    start = next(_grpc_round_robin)
+    return [logging_grpc_clients[(start + i) % n] for i in range(n)]
+
+
 async def logging_post_with_failover(payload: dict):
-    shuffled_clients = random.sample(logging_grpc_clients, k=len(logging_grpc_clients))
     last_error = None
 
-    for i, grpc_client in enumerate(shuffled_clients):
+    for grpc_client in _ordered_clients():
         try:
-            print(f"Facade: Attempting to log transaction to {grpc_client.target} (attempt {i+1}/{len(shuffled_clients)})", flush=True)
             started = time.perf_counter()
             response = await grpc_client.log_transaction(payload, timeout=10.0)
             elapsed = time.perf_counter() - started
-            print(f"Facade: Successfully logged to {grpc_client.target}: {response}", flush=True)
             if response.get("status") == "ok":
                 return response, elapsed
             raise RuntimeError(response.get("message", "Unknown gRPC logging error"))
         except (grpc.RpcError, RuntimeError) as error:
-            print(f"Facade: Error calling {grpc_client.target}: {error}", flush=True)
             last_error = error
 
     print(f"Facade: All logging-service instances unavailable: {last_error}", flush=True)
@@ -125,10 +128,9 @@ async def logging_post_with_failover(payload: dict):
 
 
 async def logging_get_with_failover():
-    shuffled_clients = random.sample(logging_grpc_clients, k=len(logging_grpc_clients))
     last_error = None
 
-    for grpc_client in shuffled_clients:
+    for grpc_client in _ordered_clients():
         try:
             started = time.perf_counter()
             response = await grpc_client.get_logs({}, timeout=10.0)

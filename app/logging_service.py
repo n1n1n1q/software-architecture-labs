@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import socket
@@ -8,6 +9,26 @@ import grpc
 import hazelcast
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+
+
+def hz_future_to_asyncio(hz_future):
+    loop = asyncio.get_running_loop()
+    aio_future = loop.create_future()
+
+    def _on_done(future):
+        try:
+            result = future.result()
+        except BaseException as exc:
+            loop.call_soon_threadsafe(
+                lambda: aio_future.set_exception(exc) if not aio_future.done() else None
+            )
+        else:
+            loop.call_soon_threadsafe(
+                lambda: aio_future.set_result(result) if not aio_future.done() else None
+            )
+
+    hz_future.add_done_callback(_on_done)
+    return aio_future
 
 
 hazelcast_cluster_name = os.getenv("HAZELCAST_CLUSTER_NAME", "hello-world")
@@ -35,9 +56,7 @@ def decode_payload(raw: bytes) -> dict:
 
 
 async def grpc_log_transaction(request: dict, context):
-    print(f"[{instance_id}] gRPC LogTransaction called with request: {request}", flush=True)
     if hz_map is None:
-        print(f"[{instance_id}] ERROR: Hazelcast map is not initialized", flush=True)
         context.abort(grpc.StatusCode.UNAVAILABLE, "Hazelcast map is not initialized")
 
     transaction_id = request.get("transaction_id")
@@ -46,7 +65,6 @@ async def grpc_log_transaction(request: dict, context):
     timestamp = request.get("timestamp")
 
     if not transaction_id or not user_id or amount is None or not timestamp:
-        print(f"[{instance_id}] ERROR: Missing required fields in request", flush=True)
         context.abort(grpc.StatusCode.INVALID_ARGUMENT, "transaction_id, user_id, amount, timestamp are required")
 
     payload = {
@@ -54,29 +72,27 @@ async def grpc_log_transaction(request: dict, context):
         "amount": amount,
         "timestamp": timestamp,
     }
-    hz_map.put(transaction_id, json.dumps(payload, separators=(",", ":")))
-    print(f"[{instance_id}] Logged transaction via gRPC: {transaction_id} (user_id={user_id}, amount={amount})", flush=True)
+    await hz_future_to_asyncio(
+        hz_map.put(transaction_id, json.dumps(payload, separators=(",", ":")))
+    )
 
     return {
         "status": "ok",
         "instance_id": instance_id,
         "message": "Transaction logged successfully",
     }
+
+
 async def grpc_get_logs(request: dict, context):
-    print(f"[{instance_id}] gRPC GetLogs called", flush=True)
     if hz_map is None:
-        print(f"[{instance_id}] ERROR: Hazelcast map is not initialized", flush=True)
         context.abort(grpc.StatusCode.UNAVAILABLE, "Hazelcast map is not initialized")
 
-    transactions = hz_map.entry_set()
+    transactions = await hz_future_to_asyncio(hz_map.entry_set())
     transactions_copy = {
         tx_id: json.loads(raw_value)
         for tx_id, raw_value in transactions
     }
 
-    print(f"[{instance_id}] Returned {len(transactions_copy)} transactions via gRPC", flush=True)
-
-    print(f"[{instance_id}] Returned {len(transactions_copy)} transactions via gRPC")
     return {
         "transactions": transactions_copy,
         "instance_id": instance_id,
@@ -98,7 +114,7 @@ async def lifespan(app: FastAPI):
             cluster_name=hazelcast_cluster_name,
             cluster_members=cluster_members,
         )
-        hz_map = hz_client.get_map(hazelcast_map_name).blocking()
+        hz_map = hz_client.get_map(hazelcast_map_name)
 
         print(
             f"[{instance_id}] Connected to Hazelcast cluster '{hazelcast_cluster_name}' "
