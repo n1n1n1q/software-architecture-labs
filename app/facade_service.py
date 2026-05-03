@@ -216,6 +216,10 @@ async def logging_post_with_failover(payload: dict):
         except (grpc.RpcError, RuntimeError) as exc:
             print(f"[{instance_id}] Logging error on {target}: {exc}", flush=True)
             last_error = exc
+            if k8s_client is not None:
+                k8s_client.invalidate_service_cache(
+                    logging_service_name, logging_service_port_name
+                )
 
     raise HTTPException(
         status_code=503,
@@ -242,6 +246,10 @@ async def logging_get_with_failover():
         except grpc.RpcError as exc:
             last_error = exc
             print(f"[{instance_id}] GetLogs error on {target}: {exc}", flush=True)
+            if k8s_client is not None:
+                k8s_client.invalidate_service_cache(
+                    logging_service_name, logging_service_port_name
+                )
 
     raise HTTPException(
         status_code=503,
@@ -272,6 +280,10 @@ async def counter_get_with_failover(path: str):
                 f"[{instance_id}] counter-service GET {url} failed: {exc}", flush=True
             )
             last_error = exc
+            if k8s_client is not None:
+                k8s_client.invalidate_service_cache(
+                    counter_service_name, counter_service_port_name
+                )
 
     print(
         f"[{instance_id}] All counter-service instances unavailable: {last_error}",
@@ -399,6 +411,7 @@ async def get_services():
         instances = await k8s_client.get_service_instances(
             current_service,
             port_name=current_port_name,
+            use_cache=False,
         )
         services_snapshot[current_service] = serialize_instances(instances)
 

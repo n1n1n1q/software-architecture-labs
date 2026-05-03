@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -29,6 +30,7 @@ class KubernetesApiClient:
         self,
         namespace: Optional[str] = None,
         timeout: float = 5.0,
+        discovery_ttl: Optional[float] = None,
     ) -> None:
         api_host = os.getenv("KUBERNETES_SERVICE_HOST")
         api_port = os.getenv("KUBERNETES_SERVICE_PORT_HTTPS", "443")
@@ -56,6 +58,12 @@ class KubernetesApiClient:
             verify=str(ca_cert_path),
             timeout=timeout,
         )
+
+        if discovery_ttl is None:
+            discovery_ttl = float(os.getenv("K8S_DISCOVERY_TTL_SEC", "5.0"))
+        self._discovery_ttl = max(0.0, discovery_ttl)
+        self._discovery_cache: dict[tuple[str, Optional[str]], tuple[float, list[ServiceInstance]]] = {}
+        self._discovery_locks: dict[tuple[str, Optional[str]], asyncio.Lock] = {}
 
     @staticmethod
     def _read_required_file(path: Path) -> str:
@@ -111,10 +119,61 @@ class KubernetesApiClient:
             f"after {max_attempts} attempts: {last_error}"
         )
 
+    def _get_discovery_lock(
+        self, key: tuple[str, Optional[str]]
+    ) -> asyncio.Lock:
+        lock = self._discovery_locks.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._discovery_locks[key] = lock
+        return lock
+
+    def invalidate_service_cache(
+        self,
+        service_name: Optional[str] = None,
+        port_name: Optional[str] = None,
+    ) -> None:
+        if service_name is None:
+            self._discovery_cache.clear()
+            return
+        self._discovery_cache.pop((service_name, port_name), None)
+
     async def get_service_instances(
         self,
         service_name: str,
         port_name: Optional[str] = None,
+        use_cache: bool = True,
+    ) -> list[ServiceInstance]:
+        cache_key = (service_name, port_name)
+        if use_cache and self._discovery_ttl > 0:
+            cached = self._discovery_cache.get(cache_key)
+            if cached is not None:
+                expires_at, instances = cached
+                if expires_at > time.monotonic():
+                    return instances
+
+            lock = self._get_discovery_lock(cache_key)
+            async with lock:
+                cached = self._discovery_cache.get(cache_key)
+                if cached is not None:
+                    expires_at, instances = cached
+                    if expires_at > time.monotonic():
+                        return instances
+                instances = await self._fetch_service_instances(
+                    service_name, port_name
+                )
+                self._discovery_cache[cache_key] = (
+                    time.monotonic() + self._discovery_ttl,
+                    instances,
+                )
+                return instances
+
+        return await self._fetch_service_instances(service_name, port_name)
+
+    async def _fetch_service_instances(
+        self,
+        service_name: str,
+        port_name: Optional[str],
     ) -> list[ServiceInstance]:
         namespace = quote(self.namespace, safe="")
         name = quote(service_name, safe="")
@@ -174,8 +233,11 @@ class KubernetesApiClient:
         port_name: Optional[str] = None,
         scheme: Optional[str] = None,
         ready_only: bool = True,
+        use_cache: bool = True,
     ) -> list[str]:
-        instances = await self.get_service_instances(service_name, port_name=port_name)
+        instances = await self.get_service_instances(
+            service_name, port_name=port_name, use_cache=use_cache
+        )
         if ready_only:
             instances = [instance for instance in instances if instance.ready]
 
