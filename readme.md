@@ -120,22 +120,18 @@ kubectl -n micro-lab5 port-forward svc/facade-service 8002:8002
 
 Якщо вимкнути facade, то все падає. У тому числі , port forward вікно крашиться і отримує помилку:  
 ![](assets/facade_shutdown.png)
-## Performance 
-```bash
-curl -X POST http://localhost:8002/metrics/reset
+### Performance 
 
-python perf_client.py --base-url http://localhost:8002 --clients 10 --requests-per-client 1000 --verify
+Я використав скрипт з попередніх ДЗ і отримав наступні результати:    
 
-```
+![](assets/perf_10users.png)  
 
-```bash
-curl -X POST http://localhost:8002/metrics/reset
+![](assets/perf_sameuser.png)
+Можемо порівняти результати з іншими ДЗ:  
 
-python perf_client.py \
-  --base-url http://localhost:8002 \
-  --clients 10 \
-  --requests-per-client 1000 \
-  --same-user \
-  --verify
-```
+| Test scenarios | Task 1 (in-mem) | Task 3 (DB) | Task 5 (final) |
+| :--- | :--- | :--- | :--- |
+| **10 accounts** | **Total time:** 218.52<br><br>**logging-service contribution:** 50.61%<br><br>**counter-service contribution:** 49.39% | **Total time:** 173.67<br><br>**logging-service contribution:** 30.76%<br><br>**counter-service contribution:** 69.24% | **Total time:** 172.79<br><br>**logging-service contribution:** 47.59%<br><br>**counter-service contribution:** 52.41% |
+| **1 account** | **Total time:** 218.52<br><br>**logging-service contribution:** 50.47%<br><br>**counter-service contribution:** 49.53% | **Total time:** 159.95<br><br>**logging-service contribution:** 30.11%<br><br>**counter-service contribution:** 69.89% | **Total time:** 178.95<br><br>**logging-service contribution:** 47.58%<br><br>**counter-service contribution:** 52.42% |  
 
+Можна побаячити, що варіант з останньої ДЗ можна назвати найоптимальнішим, оскільки ми рівномірно розподіляємо всю роботу, маємо надійність з Kubernetes, та маємо кращий час через те, що є кілька сервісів.  
